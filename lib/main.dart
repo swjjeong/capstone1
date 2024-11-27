@@ -10,6 +10,12 @@ import 'dart:convert'; // JSON 파싱을 위해 추가
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'package:flutter_sound/flutter_sound.dart' as sound;
+import 'package:path/path.dart' as p;
+import 'package:audioplayers/audioplayers.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:http_parser/http_parser.dart';
+import 'package:flutter_ffmpeg/flutter_ffmpeg.dart';
 
 
 void main() async {
@@ -23,6 +29,7 @@ class App extends StatelessWidget {
     return MaterialApp(
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFFF2E9D7),
+        textTheme: GoogleFonts.juaTextTheme(Theme.of(context).textTheme),
       ),
       home: Scaffold(
         body: SafeArea(
@@ -65,9 +72,20 @@ class _MainPageState extends State<MainPage> {
     await flutterTts.speak(text);
   }
 
+  @override
+  void initState() {
+    super.initState();
+    _announceAppName(); // 앱 실행 시 음성 출력
+  }
+
+  Future<void> _announceAppName() async {
+    await _speak("이 앱은 여기약입니다. 한번 터치하면 해당 버튼에 대한 설명을, 길게 꾹 누르면 그 버튼이 실행됩니다.");
+  }
+
   //처방약 먹기 사진 찍고 업로드
   Future<void> takePhotoAndUpload1(BuildContext context) async {
     try {
+      await _speak("처방약 복용 카메라가 실행됩니다. 처방약 봉투를 찍어주세요.");
       final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
 
       if (photo != null) {
@@ -134,6 +152,7 @@ class _MainPageState extends State<MainPage> {
   //약 등록 시 사진 찍고 업로드
   Future<void> takePhotoAndUpload(BuildContext context) async {
     try {
+      await _speak("약 등록 카메라가 실행됩니다. 처방약의 경우 처방약 봉투를, 상비약의 경우 상비약 상자를 찍어주세요.");
       final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
 
       if (photo != null) {
@@ -208,8 +227,61 @@ class _MainPageState extends State<MainPage> {
     }
   }
 
+  // 상비약 조회 버튼 동작 구현
+  Future<void> checkStockMedicine(BuildContext context) async {
+    final ImagePicker _picker = ImagePicker();
+    final Dio _dio = Dio();
+    final FlutterTts flutterTts = FlutterTts();
 
+    flutterTts.setLanguage("ko-KR");
+    flutterTts.setEngine("com.google.android.tts");
+    flutterTts.setPitch(1.0);
 
+    try {
+      // 카메라 실행
+      await _speak("카메라가 실행됩니다.");
+      final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
+
+      if (photo != null) {
+        // FormData 생성
+        FormData formData = FormData.fromMap({
+          "image": await MultipartFile.fromFile(photo.path, filename: "medicine.jpg"),
+        });
+
+        // 서버 요청
+        final response = await _dio.post(
+          'http://13.124.74.154:8080/combined/medicine-check',
+          data: formData,
+          options: Options(
+            headers: {"Content-Type": "multipart/form-data"},
+          ),
+        );
+
+        // 응답 처리
+        if (response.statusCode == 200 && response.data != null) {
+          final status = response.data['status'];
+          if (status == "success") {
+            final medicineName = response.data['medicine_name'] ?? "알 수 없는 약";
+            final message = response.data['message'] ?? "알 수 없는 메시지";
+            final efficacy = response.data['efficacy'] ?? "효능/효과 정보가 없습니다.";
+
+            final successMessage = "$medicineName 약의 정보입니다. $message. 효능 및 효과는 $efficacy.";
+            await flutterTts.speak(successMessage);
+          } else {
+            final errorMessage =
+                response.data['error_message'] ?? "처리 중 알 수 없는 오류가 발생했습니다.";
+            await flutterTts.speak(errorMessage);
+          }
+        } else {
+          await flutterTts.speak("서버 응답이 올바르지 않습니다.");
+        }
+      } else {
+        await flutterTts.speak("사진이 선택되지 않았습니다.");
+      }
+    } catch (e) {
+      await flutterTts.speak("서버에 연결할 수 없습니다. 오류: $e");
+    }
+  }
 
 
   @override
@@ -232,6 +304,9 @@ class _MainPageState extends State<MainPage> {
               boxHeight: boxHeight,
               onSingleTap: () async => await _speak("처방받은 약을 복용합니다"),
               onLongPress: () async => await takePhotoAndUpload1(context),
+              imagePath: "assets/imgs/drugpic1.png", // 이미지를 추가
+              imageWidth: boxWidth * 0.5, // 너비를 박스 너비의 30%로 설정
+              imageHeight: boxHeight * 0.45, // 높이를 박스 높이의 30%로 설정
             ),
             ClickableBoxWidget(
               title: "약\n등록",
@@ -240,6 +315,9 @@ class _MainPageState extends State<MainPage> {
               boxHeight: boxHeight,
               onSingleTap: () async => await _speak("약을 등록합니다"),
               onLongPress: () async => await takePhotoAndUpload(context),
+              imagePath: "assets/imgs/drugpic3.png", // 이미지를 추가
+              imageWidth: boxWidth * 0.5, // 너비를 박스 너비의 30%로 설정
+              imageHeight: boxHeight * 0.45, // 높이를 박스 높이의 30%로 설정
             ),
           ],
         ),
@@ -286,6 +364,9 @@ class _MainPageState extends State<MainPage> {
                   MaterialPageRoute(builder: (context) => StockMedicineScreen()),
                 );
               },
+              imagePath: "assets/imgs/drugpic4.png", // 이미지를 추가
+              imageWidth: boxWidth * 0.5, // 너비를 박스 너비의
+              imageHeight: boxHeight * 0.4, // 높이를 박스 높이의
             ),
             ClickableBoxWidget(
               title: "상비약\n리스트업\n(추천)",
@@ -299,6 +380,9 @@ class _MainPageState extends State<MainPage> {
                   MaterialPageRoute(builder: (context) => SymptomInputScreen()),
                 );
               },
+              imagePath: "assets/imgs/drugpic5.png", // 이미지를 추가
+              imageWidth: boxWidth * 0.45, // 너비를 박스 너비의
+              imageHeight: boxHeight * 0.35, // 높이를 박스 높이의
             ),
           ],
         ),
@@ -312,6 +396,67 @@ class PrescriptionResultPage extends StatelessWidget {
   final String hospitalName;
 
   PrescriptionResultPage({required this.hospitalName});
+
+  final Dio _dio = Dio();
+  final FlutterTts flutterTts = FlutterTts();
+
+  Future<void> _speak(String text) async {
+    await flutterTts.stop();
+    await flutterTts.speak(text);
+  }
+
+  Future<void> _handleCameraAndUpload(BuildContext context) async {
+    final ImagePicker picker = ImagePicker();
+
+    try {
+      // 카메라 실행
+      await _speak("카메라가 실행됩니다. 처방약 개별봉투를 찍어주세요.");
+      final XFile? photo = await picker.pickImage(source: ImageSource.camera);
+      if (photo == null) {
+        await _speak("사진이 선택되지 않았습니다.");
+        return;
+      }
+
+      await _speak("사진을 서버로 전송 중입니다.");
+
+      // FormData 생성
+      FormData formData = FormData.fromMap({
+        "image": await MultipartFile.fromFile(photo.path, filename: "prescription.jpg"),
+      });
+
+      // 서버로 전송
+      final response = await _dio.post(
+        'http://13.124.74.154:8080/vision/extract-text',
+        data: formData,
+        options: Options(
+          headers: {"Content-Type": "multipart/form-data"},
+        ),
+      );
+
+      // 서버 응답 처리
+      if (response.statusCode == 200 && response.data != null) {
+        final status = response.data['status'];
+        if (status == "success") {
+          final extractedText = response.data['extracted_text'] ?? "알 수 없는 정보";
+          await _speak("$extractedText 약입니다. 약을 복용하길 원하신다면 가운데를 꾹눌러주세요");
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PrescriptionTextExtractor(hospitalName: hospitalName),
+            ),
+          );
+        } else {
+          final errorMessage =
+              response.data['error_message'] ?? "텍스트 추출 중 오류가 발생했습니다.";
+          await _speak(errorMessage);
+        }
+      } else {
+        await _speak("서버 응답이 올바르지 않습니다.");
+      }
+    } catch (e) {
+      await _speak("서버에 연결할 수 없습니다. 오류: $e");
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -348,13 +493,11 @@ class PrescriptionResultPage extends StatelessWidget {
                   ),
                   SizedBox(height: 20),
                   GestureDetector(
-                    onLongPress: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => PrescriptionTextExtractor(),
-                        ),
-                      );
+                    onTap: () async {
+                      await _speak("처방약 판별 버튼입니다.");
+                    },
+                    onLongPress: () async {
+                      await _handleCameraAndUpload(context); // 카메라 실행 및 서버 전송 처리
                     },
                     child: Container(
                       width: MediaQuery.of(context).size.width * 0.8,
@@ -373,7 +516,7 @@ class PrescriptionResultPage extends StatelessWidget {
                       ),
                       child: Center(
                         child: Text(
-                          "네 ! 개별약 판별하러 가기 !",
+                          "네! 처방약 판별하러가기!",
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -408,18 +551,22 @@ class PrescriptionResultPage extends StatelessWidget {
   }
 }
 
-
-//처방약 먹기(아침, 점심, 저녁 구분)
+//처방약 먹기(남은약 봉투 개수 출력) PrescriptionTextExtractor
 class PrescriptionTextExtractor extends StatefulWidget {
+  final String hospitalName; // 이전 페이지에서 받아온 병원 이름
+
+  PrescriptionTextExtractor({required this.hospitalName});
+
   @override
   _PrescriptionTextExtractorState createState() => _PrescriptionTextExtractorState();
 }
 
 class _PrescriptionTextExtractorState extends State<PrescriptionTextExtractor> {
-  final ImagePicker _picker = ImagePicker();
   final Dio _dio = Dio();
-  String? extractedText;
   final FlutterTts flutterTts = FlutterTts();
+
+  String? totalBagsMessage;
+  bool isPressed = false;
 
   @override
   void initState() {
@@ -427,59 +574,51 @@ class _PrescriptionTextExtractorState extends State<PrescriptionTextExtractor> {
     flutterTts.setLanguage("ko-KR");
     flutterTts.setEngine("com.google.android.tts");
     flutterTts.setPitch(1.0);
-    captureAndExtractText(); // 화면 시작 시 카메라 실행
-  }
-
-  Future<void> captureAndExtractText() async {
-    try {
-      // 카메라 실행
-      final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
-
-      if (photo != null) {
-        // 서버로 사진 전송
-        FormData formData = FormData.fromMap({
-          "image": await MultipartFile.fromFile(photo.path, filename: "medicine.jpg"),
-        });
-
-        final response = await _dio.post(
-          'http://13.124.74.154:8080/vision/extract-text',
-          data: formData,
-          options: Options(headers: {"Content-Type": "multipart/form-data"}),
-        );
-
-        // 응답 처리
-        if (response.statusCode == 200 && response.data != null) {
-          final text = response.data['extracted_text'] ?? "텍스트를 추출하지 못했습니다.";
-          setState(() {
-            extractedText = text;
-          });
-          await _speak(text); // 음성 출력
-        } else {
-          const errorText = "서버 응답이 없습니다.";
-          setState(() {
-            extractedText = errorText;
-          });
-          await _speak(errorText); // 음성 출력
-        }
-      } else {
-        const noPhotoText = "사진을 선택하지 않았습니다.";
-        setState(() {
-          extractedText = noPhotoText;
-        });
-        await _speak(noPhotoText); // 음성 출력
-      }
-    } catch (e) {
-      final errorText = "오류가 발생했습니다: $e";
-      setState(() {
-        extractedText = errorText;
-      });
-      await _speak(errorText); // 음성 출력
-    }
   }
 
   Future<void> _speak(String text) async {
     await flutterTts.stop();
     await flutterTts.speak(text);
+  }
+
+  Future<void> fetchPrescriptionCount() async {
+    try {
+      // 서버에 병원 이름 전송
+      final response = await _dio.post(
+        'http://13.124.74.154:8080/prescription/count',
+        data: {"hospital_name": widget.hospitalName}, // 병원 이름 활용
+        options: Options(headers: {"Content-Type": "application/json"}),
+      );
+
+      // 서버 응답 처리
+      if (response.statusCode == 200 && response.data != null) {
+        final status = response.data['status'];
+        if (status == "success") {
+          final totalBags = response.data['total_bags'];
+          setState(() {
+            totalBagsMessage = "남은 약 봉투는 $totalBags개 입니다.";
+          });
+          await _speak(totalBagsMessage!);
+        } else {
+          final errorMessage =
+              response.data['error_message'] ?? "남은 약 개수 확인 중 오류 발생";
+          setState(() {
+            totalBagsMessage = errorMessage;
+          });
+          await _speak(errorMessage);
+        }
+      } else {
+        setState(() {
+          totalBagsMessage = "서버 응답이 올바르지 않습니다.";
+        });
+        await _speak("서버 응답이 올바르지 않습니다.");
+      }
+    } catch (e) {
+      setState(() {
+        totalBagsMessage = "오류가 발생했습니다: $e";
+      });
+      await _speak("오류가 발생했습니다.");
+    }
   }
 
   @override
@@ -488,93 +627,178 @@ class _PrescriptionTextExtractorState extends State<PrescriptionTextExtractor> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text("처방 개별약 판별"),
+        title: Text("처방 약 관리"),
         backgroundColor: Color(0xFF1C3462),
       ),
       backgroundColor: Color(0xFFF2E9D7),
-      body: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Center(
-              child: extractedText == null
-                  ? CircularProgressIndicator() // 처리 중
-                  : Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  extractedText!,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              "처방 병원: ${widget.hospitalName}", // 병원 이름 출력
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
               ),
             ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Center(
-              child: GestureDetector(
-                onLongPress: () async {
-                  await _speak("약이 한 봉투 제거되었습니다."); // 길게 누를 시 hospitaltotal_bags 음성 출력
-                },
-                child: Container(
-                  width: size.width * 0.8,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    color: Color(0xFFF6CECC), // 박스 색상
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 10,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Text(
-                      "네 약을 복용합니다",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
+            SizedBox(height: 20),
+            GestureDetector(
+              onLongPress: () async {
+                setState(() {
+                  isPressed = true; // 꾹 눌렀을 때 상태 변경
+                });
+                await fetchPrescriptionCount(); // 서버로 병원 이름 전송 및 데이터 조회
+                setState(() {
+                  isPressed = false; // 처리 후 상태 초기화
+                });
+              },
+              onLongPressEnd: (_) {
+                setState(() {
+                  isPressed = false; // 꾹 누름 해제 시 상태 초기화
+                });
+              },
+              child: Container(
+                width: size.width * 0.8,
+                height: size.width * 0.5,
+                decoration: BoxDecoration(
+                  color: Color(0xFF1C3462),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.25),
+                      blurRadius: 10,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    isPressed ? "조회 중..." : "남은 약 봉투 확인",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 20.0),
-            child: ElevatedButton(
-              onPressed: () async {
-                await _speak("메인페이지로 이동합니다");
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => App()), // 메인 페이지로 이동
-                      (route) => false, // 모든 경로 제거
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFF1C3462), // 버튼 색상
-                padding: EdgeInsets.symmetric(horizontal: 150, vertical: 40),
-                textStyle: TextStyle(fontSize: 18),
-              ),
-              child: Text("여기약"),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
+// 이전 화면에서 병원 이름 전달
+void navigateToPrescriptionManager(BuildContext context, String hospitalName) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => PrescriptionTextExtractor(hospitalName: hospitalName),
+    ),
+  );
+}
 
+//서버로 증상 보내기
+Future<void> sendAudioFileToServer(String filePath) async {
+  try {
+    final dio = Dio();
 
+    // 파일 확인
+    final file = File(filePath);
+    if (!file.existsSync()) {
+      print("Error: File does not exist at path $filePath");
+      return;
+    }
+
+    // 파일 크기 확인
+    final fileSize = await file.length();
+    print("Audio file size: $fileSize bytes");
+
+    if (fileSize == 0) {
+      print("Error: File is empty");
+      return;
+    }
+
+    // MP3 변환 (옵션)
+    final convertedFilePath = await convertToMp3(filePath);
+    if (convertedFilePath == null) {
+      print("Error: Failed to convert file to MP3");
+      return;
+    }
+
+    // 파일 MIME 타입 확인 및 설정
+    final mimeType = "audio/mpeg"; // .mp3 파일의 올바른 MIME 타입
+
+    // FormData 생성
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(
+        convertedFilePath,
+        filename: 'audio_recording.mp3', // 서버에 전달할 파일명
+        contentType: MediaType.parse(mimeType), // MIME 타입 명시적으로 설정
+      ),
+      'metadata': jsonEncode({
+        'description': 'Audio recording for prescription', // 추가 정보
+        'timestamp': DateTime.now().toIso8601String(), // 현재 시간
+      }),
+    });
+
+    // 서버 요청
+    final response = await dio.post(
+      'http://13.124.74.154:8080/api/transcription-to-medicine',
+      data: formData,
+      options: Options(
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      ),
+    );
+
+    // 응답 확인
+    if (response.statusCode == 200) {
+      print("Server Response: ${response.data}");
+    } else {
+      print("Failed to send audio: ${response.statusCode}");
+    }
+  } catch (e) {
+    print("Error sending audio file: $e");
+  }
+}
+
+// MP3 변환 함수
+Future<String?> convertToMp3(String inputPath) async {
+  try {
+    final outputPath = inputPath.replaceAll(RegExp(r'\.\w+$'), '.mp3'); // 확장자 변경
+    final ffmpeg = FlutterFFmpeg();
+
+    final arguments = [
+      '-i',
+      inputPath,
+      '-codec:a',
+      'libmp3lame',
+      '-qscale:a',
+      '2',
+      outputPath,
+    ];
+
+    final result = await ffmpeg.executeWithArguments(arguments);
+
+    if (result == 0) {
+      print("MP3 변환 성공: $outputPath");
+      return outputPath;
+    } else {
+      print("MP3 변환 실패");
+      return null;
+    }
+  } catch (e) {
+    print("MP3 변환 중 오류 발생: $e");
+    return null;
+  }
+}
 
 
 
@@ -588,10 +812,18 @@ class _SymptomInputScreenState extends State<SymptomInputScreen> {
   bool _isPressed = false; // 꾹 눌렀는지 여부
   final FlutterTts flutterTts = FlutterTts();
 
+  final recorder = sound.FlutterSoundRecorder();
+  bool isRecording = false;
+  String audioPath = '';
+  String savedAudioPath = '';
+  final audioPlayer = AudioPlayer();
+  bool isPlaying = false;
+
   @override
   void initState() {
     super.initState();
     _speakInstruction();
+    initRecorder(); // 녹음기 초기화
   }
 
   Future<void> _speakInstruction() async {
@@ -600,15 +832,93 @@ class _SymptomInputScreenState extends State<SymptomInputScreen> {
     await flutterTts.speak("가운데를 꾹 눌러 증상을 음성으로 입력하세요");
   }
 
-  void _navigateToNextPage(BuildContext context) {
-    Future.delayed(Duration(seconds: 3), () {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => DrugInfoCardAlt(drugName: "타이레놀 이부프로펜"),
-        ),
-      );
-    });
+  Future<void> initRecorder() async {
+    final status = await Permission.microphone.request();
+    if (status != PermissionStatus.granted) {
+      throw 'Microphone permission not granted';
+    }
+    await recorder.openRecorder();
+  }
+
+  Future<void> startRecording() async {
+    if (!recorder.isRecording) {
+      await recorder.startRecorder(toFile: 'audio');
+      setState(() {
+        isRecording = true;
+      });
+    }
+  }
+
+  Future<void> stopRecording() async {
+    final path = await recorder.stopRecorder(); // 녹음 중지 후 경로 반환
+    if (path != null) {
+      audioPath = path;
+
+      // 파일 크기 확인 및 출력
+      final file = File(audioPath);
+      print("Audio file size: ${file.lengthSync()} bytes");
+
+      // 녹음 파일 저장
+      savedAudioPath = await saveRecordingLocally();
+
+      print("Saved audio path: $savedAudioPath");
+
+      setState(() {
+        isRecording = false;
+      });
+
+      // 서버로 파일 전송
+      await sendAudioFileToServer(audioPath);
+    } else {
+      print("No audio file recorded.");
+    }
+  }
+
+
+
+  Future<String> saveRecordingLocally() async {
+    if (audioPath.isEmpty) return '';
+
+    final audioFile = File(audioPath);
+    if (!audioFile.existsSync()) return '';
+
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final newPath = p.join(directory.path, 'recordings');
+      final newFile = File(p.join(newPath, 'audio.mp3'));
+
+      if (!(await newFile.parent.exists())) {
+        await newFile.parent.create(recursive: true);
+      }
+
+      await audioFile.copy(newFile.path);
+      return newFile.path;
+    } catch (e) {
+      print('녹음 파일 저장 중 오류 발생: $e');
+      return '';
+    }
+  }
+
+  Future<void> playRecording() async {
+    if (savedAudioPath.isNotEmpty && !isPlaying) {
+      await audioPlayer.play(DeviceFileSource(savedAudioPath));
+      setState(() {
+        isPlaying = true;
+      });
+
+      audioPlayer.onPlayerComplete.listen((event) {
+        setState(() {
+          isPlaying = false;
+        });
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    recorder.closeRecorder();
+    audioPlayer.dispose();
+    super.dispose();
   }
 
   @override
@@ -635,18 +945,17 @@ class _SymptomInputScreenState extends State<SymptomInputScreen> {
             ),
             SizedBox(height: 20),
             GestureDetector(
-              onLongPressStart: (_) {
+              onLongPress: () async {
                 setState(() {
                   _isPressed = true; // 꾹 눌렀을 때 상태 변경
                 });
+                await startRecording(); // 녹음 시작
               },
-              onLongPressEnd: (_) {
+              onLongPressEnd: (_) async {
+                await stopRecording(); // 녹음 중지 및 저장
                 setState(() {
                   _isPressed = false; // 꾹 누름 해제 시 상태 변경
                 });
-
-                // 3초 후 페이지 전환
-                _navigateToNextPage(context);
               },
               child: Container(
                 width: size.width * 0.8,
@@ -663,20 +972,39 @@ class _SymptomInputScreenState extends State<SymptomInputScreen> {
                   ],
                 ),
                 child: Center(
-                  child: Text(
-                    _isPressed ? "입력 중..." : '여기를 꾹 눌러 음성입력 시작',
-                    textAlign: TextAlign.center,
+                  child: _isPressed
+                      ? Text(
+                    "녹음 중...",
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 20,
+                      fontWeight: FontWeight.bold,
                     ),
+                  )
+                      : Image.asset(
+                    'assets/imgs/mic.png', // 이미지 경로
+                    width: 150, // 이미지 크기
+                    height: 150,
+                    fit: BoxFit.contain,
                   ),
                 ),
               ),
             ),
             SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () async {
+                await playRecording(); // 녹음된 파일 재생
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                textStyle: TextStyle(fontSize: 18),
+              ),
+              child: Text(isPlaying ? "재생 중..." : "녹음 파일 재생"),
+            ),
+            SizedBox(height: 20),
             Text(
-              _isPressed ? "입력 중..." : "음성입력 대기 중",
+              isRecording ? "녹음 중..." : "음성입력 대기 중",
               style: TextStyle(fontSize: 18, color: Colors.black),
             ),
           ],
@@ -996,6 +1324,9 @@ class ClickableBoxWidget extends StatelessWidget {
   final double boxHeight;
   final VoidCallback onSingleTap;
   final VoidCallback onLongPress;
+  final String? imagePath; // 이미지 경로 추가
+  final double? imageWidth; // 이미지 너비 추가
+  final double? imageHeight; // 이미지 높이 추가
 
   ClickableBoxWidget({
     required this.title,
@@ -1004,13 +1335,16 @@ class ClickableBoxWidget extends StatelessWidget {
     required this.boxHeight,
     required this.onSingleTap,
     required this.onLongPress,
+    this.imagePath,
+    this.imageWidth, // 선택적 이미지 너비
+    this.imageHeight, // 선택적 이미지 높이
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onSingleTap,
-      onLongPress: onLongPress, // 길게 눌렀을 때 실행
+      onLongPress: onLongPress,
       child: Container(
         width: boxWidth,
         height: boxHeight,
@@ -1026,29 +1360,179 @@ class ClickableBoxWidget extends StatelessWidget {
             ),
           ],
         ),
-        child: Align(
-          alignment: Alignment.topLeft,
-          child: Padding(
-            padding: const EdgeInsets.all(10.0),
-            child: Text(
-              title,
-              textAlign: TextAlign.left,
-              style: TextStyle(
-                color: Colors.black,
-                fontSize: 23,
-                fontFamily: 'Inter',
-                fontWeight: FontWeight.w500,
+        child: Stack(
+          children: [
+            Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.all(10.0),
+                child: Text(
+                  title,
+                  textAlign: TextAlign.left,
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: 23,
+                    fontFamily: 'Inter',
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ),
             ),
-          ),
+            if (imagePath != null) // 이미지가 있는 경우에만 렌더링
+              Align(
+                alignment: Alignment.bottomRight,
+                child: Padding(
+                  padding: const EdgeInsets.all(10.0),
+                  child: Image.asset(
+                    imagePath!,
+                    width: imageWidth ?? boxWidth * 0.4, // 기본값 설정
+                    height: imageHeight ?? boxHeight * 0.4, // 기본값 설정
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
 }
 
-// 상비약 조회 및 삭제 페이지 예시
+
+
+// 상비약 조회
+Future<void> checkStockMedicine(BuildContext context) async {
+  final ImagePicker _picker = ImagePicker();
+  final Dio _dio = Dio();
+  final FlutterTts flutterTts = FlutterTts();
+
+  flutterTts.setLanguage("ko-KR");
+  flutterTts.setEngine("com.google.android.tts");
+  flutterTts.setPitch(1.0);
+
+  try {
+    // 카메라 실행
+    final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
+
+    if (photo != null) {
+      // FormData 생성
+      FormData formData = FormData.fromMap({
+        "image": await MultipartFile.fromFile(photo.path, filename: "medicine.jpg"),
+      });
+
+      // 서버 요청
+      final response = await _dio.post(
+        'http://13.124.74.154:8080/combined/medicine-check',
+        data: formData,
+        options: Options(
+          headers: {"Content-Type": "multipart/form-data"},
+        ),
+      );
+
+      // 응답 처리
+      if (response.statusCode == 200 && response.data != null) {
+        final status = response.data['status'];
+        if (status == "success") {
+          final medicineName = response.data['medicine_name'] ?? "알 수 없는 약";
+          final message = response.data['message'] ?? "알 수 없는 메시지";
+          final efficacy = response.data['efficacy'] ?? "효능/효과 정보가 없습니다.";
+
+          final successMessage = "$medicineName 약의 정보입니다. $message. 효능 및 효과는 $efficacy.";
+          await flutterTts.speak(successMessage);
+        } else {
+          final errorMessage =
+              response.data['error_message'] ?? "처리 중 알 수 없는 오류가 발생했습니다.";
+          await flutterTts.speak(errorMessage);
+        }
+      } else {
+        await flutterTts.speak("서버 응답이 올바르지 않습니다.");
+      }
+    } else {
+      await flutterTts.speak("사진이 선택되지 않았습니다.");
+    }
+  } catch (e) {
+    await flutterTts.speak("서버에 연결할 수 없습니다. 오류: $e");
+  }
+}
+
+//상비약 삭제
+Future<void> deleteStockMedicine(BuildContext context) async {
+  final FlutterTts flutterTts = FlutterTts();
+  final ImagePicker _picker = ImagePicker();
+  final Dio _dio = Dio();
+
+  flutterTts.setLanguage("ko-KR");
+  flutterTts.setPitch(1.0);
+  flutterTts.setEngine("com.google.android.tts");
+
+  Future<void> _speak(String text) async {
+    await flutterTts.stop();
+    await flutterTts.speak(text);
+  }
+
+  try {
+    // 카메라 실행
+    await _speak("상비약 삭제를 위해 카메라가 실행됩니다.");
+    final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
+
+    if (photo != null) {
+      // FormData 생성
+      FormData formData = FormData.fromMap({
+        "image": await MultipartFile.fromFile(photo.path, filename: "delete_image.jpg"),
+      });
+
+      // 서버 요청
+      final response = await _dio.post(
+        'http://13.124.74.154:8080/medicine/delete-by-image',
+        data: formData,
+        options: Options(
+          headers: {"Content-Type": "multipart/form-data"},
+        ),
+      );
+
+      // 서버 응답 처리
+      if (response.statusCode == 200 && response.data != null) {
+        final Map<String, dynamic> responseData = response.data;
+
+        if (responseData['status'] == "success") {
+          final name = responseData['name'] ?? "알 수 없는 이름";
+          final message = responseData['message'] ?? "메시지가 없습니다.";
+          await _speak("상비약 삭제가 성공했습니다. 약 이름: $name, 메시지: $message.");
+        } else if (responseData['status'] == "error") {
+          final errorMessage =
+              responseData['error_message'] ?? "처리 중 알 수 없는 오류가 발생했습니다.";
+          await _speak(errorMessage);
+        } else if (responseData['status'] == "not_found") {
+          final name = responseData['name'] ?? "알 수 없는 이름";
+          final message = responseData['message'] ?? "해당 약을 찾을 수 없습니다.";
+          await _speak("삭제할 약을 찾을 수 없습니다. 약 이름: $name, 메시지: $message.");
+        }
+      } else {
+        await _speak("서버 응답이 올바르지 않습니다.");
+      }
+    } else {
+      await _speak("사진이 선택되지 않았습니다.");
+    }
+  } catch (e) {
+    await _speak("서버에 연결할 수 없습니다. 오류: $e");
+  }
+}
+
+// 상비약 조회 및 삭제 페이지에 수정된 삭제 기능 적용
 class StockMedicineScreen extends StatelessWidget {
+  final FlutterTts flutterTts = FlutterTts();
+
+  StockMedicineScreen() {
+    flutterTts.setLanguage("ko-KR");
+    flutterTts.setPitch(1.0);
+    flutterTts.setEngine("com.google.android.tts");
+  }
+
+  Future<void> _speak(String text) async {
+    await flutterTts.stop();
+    await flutterTts.speak(text);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1057,47 +1541,63 @@ class StockMedicineScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 270,
-              height: 210,
-              decoration: ShapeDecoration(
-                color: Color(0x7FD9D9D9),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+            GestureDetector(
+              onTap: () async {
+                await _speak("상비약 조회 버튼입니다.");
+              },
+              onLongPress: () async {
+                await checkStockMedicine(context); // 상비약 조회 기능 실행
+              },
+              child: Container(
+                width: 270,
+                height: 210,
+                decoration: ShapeDecoration(
+                  color: Color(0x7FD9D9D9),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
-              ),
-              child: Center(
-                child: Text(
-                  '상비약\n조회',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Color(0xFF1C3462),
-                    fontSize: 30,
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.w400,
+                child: Center(
+                  child: Text(
+                    '상비약\n조회',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Color(0xFF1C3462),
+                      fontSize: 30,
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w400,
+                    ),
                   ),
                 ),
               ),
             ),
             SizedBox(height: 30),
-            Container(
-              width: 270,
-              height: 210,
-              decoration: ShapeDecoration(
-                color: Color(0x7FD9D9D9),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+            GestureDetector(
+              onTap: () async {
+                await _speak("상비약 삭제 버튼입니다.");
+              },
+              onLongPress: () async {
+                await deleteStockMedicine(context); // 수정된 상비약 삭제 기능 실행
+              },
+              child: Container(
+                width: 270,
+                height: 210,
+                decoration: ShapeDecoration(
+                  color: Color(0x7FD9D9D9),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
-              ),
-              child: Center(
-                child: Text(
-                  '상비약\n삭제',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Color(0xFF1C3462),
-                    fontSize: 30,
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.w400,
+                child: Center(
+                  child: Text(
+                    '상비약\n삭제',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Color(0xFF1C3462),
+                      fontSize: 30,
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w400,
+                    ),
                   ),
                 ),
               ),

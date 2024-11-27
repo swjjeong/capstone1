@@ -20,30 +20,24 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.capstone1"
-        minSdk = 21 // 최소 SDK 버전
-        targetSdk = 34 // 최신 SDK 버전으로 설정
-        versionCode = 1
-        versionName = "1.0"
+        applicationId "com.example.capstone1"
+        minSdkVersion 24 // 최소 SDK 버전
+        targetSdkVersion  34 // 최신 SDK 버전으로 설정
+        versionCode 1
+        versionName "1.0"
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.debug // 디버그 서명 사용 (릴리스 빌드 시 서명 필요)
             shrinkResources false // 리소스 축소 비활성화
             minifyEnabled false // 코드 축소 비활성화
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-
-    // Kotlin Gradle 플러그인 호환성을 위해 추가
-    configurations.all {
-        resolutionStrategy {
-            force "org.jetbrains.kotlin:kotlin-stdlib:1.8.20"
-        }
-    }
 }
+
 
 flutter {
     source = "../.."
 }
+
