@@ -85,7 +85,7 @@ class _MainPageState extends State<MainPage> {
   //처방약 먹기 사진 찍고 업로드
   Future<void> takePhotoAndUpload1(BuildContext context) async {
     try {
-      await _speak("처방약 복용 카메라가 실행됩니다. 처방약 봉투를 찍어주세요.");
+      await _speak("처방약 복용 카메라가 실행됩니다. 주변을 깨끗이 하고, 처방약 봉투를 찍어주세요. 음량조절 버튼을 누르고 찰칵 소리가 나면 오른쪽 아래 버튼을 눌러야 합니다.");
       final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
 
       if (photo != null) {
@@ -97,46 +97,35 @@ class _MainPageState extends State<MainPage> {
         final response = await _dio.post(
           'http://13.124.74.154:8080/prescription/process',
           data: formData,
-          options: Options(
-            headers: {
-              "Content-Type": "multipart/form-data",
-            },
-          ),
+          options: Options(headers: {"Content-Type": "multipart/form-data"}),
         );
 
-        // 응답 데이터 확인
-        print("응답 데이터: ${response.data}");
-        print("응답 헤더: ${response.headers}");
-        print("응답 데이터 타입: ${response.data.runtimeType}");
-
-        // 응답이 비어 있는 경우 처리
-        if (response.data == null || response.data.toString().isEmpty) {
-          _speak("서버에서 응답이 없습니다. 다시 시도해주세요.");
-          print("서버 응답이 비어 있습니다.");
-          return;
-        }
-
-        // 응답이 String으로 왔을 경우 JSON으로 변환
-        final Map<String, dynamic> responseData = response.data is String
-            ? json.decode(response.data)
-            : response.data;
-
         // 응답 처리
-        if (responseData.containsKey('hospital_name')) {
-          final hospitalName = responseData['hospital_name'] ?? "알 수 없는 병원";
-          final hospitalmessage = responseData['message'] ?? "알 수 없는 병원약 정보";
+        if (response.statusCode == 200 && response.data != null) {
+          final responseData = response.data is String
+              ? json.decode(response.data)
+              : response.data;
 
-          // 음성 출력 및 UI 업데이트
-          await _speak("등록된 처방약 중에서 찾았습니다. $hospitalName병원 약입니다. $hospitalmessage 약을 복용하시겠습니까? 맞다면 가운데를 꾹 눌러주시고, 아니라면 맨 아래를 눌러주세요.");
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => PrescriptionResultPage(hospitalName: hospitalName),
-            ),
-          );
+          if (responseData.containsKey('hospital_name') && responseData.containsKey('message')) {
+            final hospitalName = responseData['hospital_name'];
+            final extractedText = responseData['message']; // 텍스트를 다음 화면으로 전달
+
+            await _speak("등록된 처방약 중에서 찾았습니다. $hospitalName병원 약입니다. $extractedText 약을 복용하시겠습니까? 맞다면 가운데를 꾹 눌러주시고, 아니라면 맨 아래를 눌러주세요.");
+            // 다음 화면으로 전달
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => PrescriptionResultPage(
+                  hospitalName: hospitalName,
+                  extractedText: extractedText,
+                ),
+              ),
+            );
+          } else {
+            _speak("등록된 처방약 중에서 병원 정보를 찾을 수 없습니다.");
+          }
         } else {
-          _speak("등록된 처방약 중에서 병원 이름을 찾을 수 없습니다.");
-          print("서버 응답에 병원 이름이 없습니다.");
+          _speak("서버 응답이 올바르지 않습니다.");
         }
       } else {
         _speak("사진을 선택하지 않았습니다.");
@@ -147,12 +136,10 @@ class _MainPageState extends State<MainPage> {
     }
   }
 
-
-
   //약 등록 시 사진 찍고 업로드
   Future<void> takePhotoAndUpload(BuildContext context) async {
     try {
-      await _speak("약 등록 카메라가 실행됩니다. 처방약의 경우 처방약 봉투를, 상비약의 경우 상비약 상자를 찍어주세요.");
+      await _speak("약 등록 카메라가 실행됩니다. 처방약의 경우 처방약 봉투를, 상비약의 경우 상비약 상자를 찍어주세요. 음량조절 버튼을 누르고 찰칵 소리가 나면 오른쪽 아래 버튼을 눌러야 합니다.");
       final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
 
       if (photo != null) {
@@ -239,7 +226,7 @@ class _MainPageState extends State<MainPage> {
 
     try {
       // 카메라 실행
-      await _speak("카메라가 실행됩니다.");
+      await _speak("상비약 조회 카메라가 실행됩니다. 음량조절 버튼을 누르고 찰칵 소리가 나면 오른쪽 아래 버튼을 눌러야 합니다.");
       final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
 
       if (photo != null) {
@@ -378,8 +365,9 @@ class _MainPageState extends State<MainPage> {
               color: Color(0xFFFFD700),
               boxWidth: boxWidth,
               boxHeight: boxHeight,
-              onSingleTap: () async => await _speak("상비약 리스트업 추천합니다"),
+              onSingleTap: () async => await _speak("상비약 리스트업 추천버튼입니다."),
               onLongPress: () {
+                _speak("상비약 리스트업 추천합니다. 가운데를 꾹 눌러 증상을 음성으로 입력해주세요.");
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => SymptomInputScreen()),
@@ -399,23 +387,16 @@ class _MainPageState extends State<MainPage> {
 //처방약 먹기 (처방전 업로드 후 결과 화면)
 class PrescriptionResultPage extends StatelessWidget {
   final String hospitalName;
+  final String extractedText;
 
-  PrescriptionResultPage({required this.hospitalName});
-
-  final Dio _dio = Dio();
-  final FlutterTts flutterTts = FlutterTts();
-
-  Future<void> _speak(String text) async {
-    await flutterTts.stop();
-    await flutterTts.speak(text);
-  }
+  PrescriptionResultPage({required this.hospitalName, required this.extractedText});
 
   Future<void> _handleCameraAndUpload(BuildContext context) async {
+    final Dio _dio = Dio();
     final ImagePicker picker = ImagePicker();
 
     try {
-      // 카메라 실행
-      await _speak("카메라가 실행됩니다. 처방약 개별봉투를 찍어주세요.");
+      await _speak("카메라가 실행됩니다. 처방약 개별봉투를 찍어주세요. 음량조절 버튼을 누르고 찰칵 소리가 나면 오른쪽 아래 버튼을 눌러야 합니다.");
       final XFile? photo = await picker.pickImage(source: ImageSource.camera);
       if (photo == null) {
         await _speak("사진이 선택되지 않았습니다.");
@@ -424,43 +405,47 @@ class PrescriptionResultPage extends StatelessWidget {
 
       await _speak("사진을 서버로 전송 중입니다.");
 
-      // FormData 생성
       FormData formData = FormData.fromMap({
         "image": await MultipartFile.fromFile(photo.path, filename: "prescription.jpg"),
       });
 
-      // 서버로 전송
+      // 서버 전송
       final response = await _dio.post(
         'http://13.124.74.154:8080/vision/extract-text',
         data: formData,
-        options: Options(
-          headers: {"Content-Type": "multipart/form-data"},
-        ),
+        options: Options(headers: {"Content-Type": "multipart/form-data"}),
       );
 
-      // 서버 응답 처리
       if (response.statusCode == 200 && response.data != null) {
         final status = response.data['status'];
         if (status == "success") {
-          final extractedText = response.data['extracted_text'] ?? "알 수 없는 정보";
-          await _speak("$extractedText 약입니다. 약을 복용하길 원하신다면 가운데를 꾹눌러주세요");
+          final extractedText = response.data['message'] ?? "알 수 없는 정보";
+          await _speak("$extractedText약 입니다. 남은 약 봉투 개수를 확인하고 싶다면 가운데를 꾹 눌러주세요");
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => PrescriptionTextExtractor(hospitalName: hospitalName),
+              builder: (context) => PrescriptionTextExtractor(
+                hospitalName: hospitalName, // 병원 이름 전달
+                extractedText: extractedText, // 추출된 텍스트 전달
+              ),
             ),
           );
+
         } else {
-          final errorMessage =
-              response.data['error_message'] ?? "텍스트 추출 중 오류가 발생했습니다.";
+          final errorMessage = response.data['error_message'] ?? "오류 발생.";
           await _speak(errorMessage);
         }
       } else {
         await _speak("서버 응답이 올바르지 않습니다.");
       }
     } catch (e) {
-      await _speak("서버에 연결할 수 없습니다. 오류: $e");
+      await _speak("서버 오류가 발생했습니다: $e");
     }
+  }
+
+  Future<void> _speak(String text) async {
+    final FlutterTts flutterTts = FlutterTts();
+    await flutterTts.speak(text);
   }
 
   @override
@@ -499,7 +484,7 @@ class PrescriptionResultPage extends StatelessWidget {
                   SizedBox(height: 20),
                   GestureDetector(
                     onTap: () async {
-                      await _speak("처방약 판별 버튼입니다.");
+                      await _speak("개별 약봉투를 활영하여 복용시기를 판별합니다.");
                     },
                     onLongPress: () async {
                       await _handleCameraAndUpload(context); // 카메라 실행 및 서버 전송 처리
@@ -558,14 +543,18 @@ class PrescriptionResultPage extends StatelessWidget {
 
 //처방약 먹기(남은약 봉투 개수 출력) PrescriptionTextExtractor
 class PrescriptionTextExtractor extends StatefulWidget {
-  final String hospitalName; // 이전 페이지에서 받아온 병원 이름
+  final String hospitalName;
+  final String extractedText; // 추가된 필드
 
-  PrescriptionTextExtractor({required this.hospitalName});
+  PrescriptionTextExtractor({
+    required this.hospitalName,
+    required this.extractedText, // 초기화
+  });
 
   @override
-  _PrescriptionTextExtractorState createState() => _PrescriptionTextExtractorState();
+  _PrescriptionTextExtractorState createState() =>
+      _PrescriptionTextExtractorState();
 }
-
 class _PrescriptionTextExtractorState extends State<PrescriptionTextExtractor> {
   final Dio _dio = Dio();
   final FlutterTts flutterTts = FlutterTts();
@@ -588,43 +577,49 @@ class _PrescriptionTextExtractorState extends State<PrescriptionTextExtractor> {
 
   Future<void> fetchPrescriptionCount() async {
     try {
-      // 서버에 병원 이름 전송
+      // 요청 데이터 생성
+      final formData = FormData.fromMap({
+        "hospitalName": widget.hospitalName, // 병원 이름
+        "timeOfDay": widget.extractedText,   // 시간을 timeOfDay로 전송
+      });
+
+      print("요청 데이터: $formData");
+
+      // 서버 요청
       final response = await _dio.post(
-        'http://13.124.74.154:8080/prescription/count',
-        data: {"hospital_name": widget.hospitalName}, // 병원 이름 활용
-        options: Options(headers: {"Content-Type": "application/json"}),
+        'http://13.124.74.154:8080/prescription/update-dosage',
+        data: formData,
+        options: Options(
+          headers: {
+            "Content-Type": "multipart/form-data", // form-data 형식 설정
+          },
+        ),
       );
 
-      // 서버 응답 처리
+      // 응답 처리
       if (response.statusCode == 200 && response.data != null) {
+        print("응답 데이터: ${response.data}");
         final status = response.data['status'];
+
         if (status == "success") {
-          final totalBags = response.data['total_bags'];
-          setState(() {
-            totalBagsMessage = "남은 약 봉투는 $totalBags개 입니다.";
-          });
-          await _speak(totalBagsMessage!);
+          final dosageMessage = response.data['message'];
+          String totalBagsMessage = "남은 약 봉투는 ${response.data['remaining_bags']}개 입니다.";
+          await _speak("$totalBagsMessage $dosageMessage");
+          setState(() {});
         } else {
-          final errorMessage =
-              response.data['error_message'] ?? "남은 약 개수 확인 중 오류 발생";
-          setState(() {
-            totalBagsMessage = errorMessage;
-          });
+          final errorMessage = response.data['error_message'] ?? "오류 발생.";
           await _speak(errorMessage);
         }
       } else {
-        setState(() {
-          totalBagsMessage = "서버 응답이 올바르지 않습니다.";
-        });
+        print("서버 응답 코드: ${response.statusCode}");
         await _speak("서버 응답이 올바르지 않습니다.");
       }
     } catch (e) {
-      setState(() {
-        totalBagsMessage = "오류가 발생했습니다: $e";
-      });
-      await _speak("오류가 발생했습니다.");
+      print("오류 발생: $e");
+      await _speak("오류 발생: 이여");
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -698,15 +693,22 @@ class _PrescriptionTextExtractorState extends State<PrescriptionTextExtractor> {
   }
 }
 
-// 이전 화면에서 병원 이름 전달
-void navigateToPrescriptionManager(BuildContext context, String hospitalName) {
+void navigateToPrescriptionManager(
+    BuildContext context,
+    String hospitalName,
+    String extractedText, // 추가된 매개변수
+    ) {
   Navigator.push(
     context,
     MaterialPageRoute(
-      builder: (context) => PrescriptionTextExtractor(hospitalName: hospitalName),
+      builder: (context) => PrescriptionTextExtractor(
+        hospitalName: hospitalName,
+        extractedText: extractedText, // 필수 매개변수 전달
+      ),
     ),
   );
 }
+
 
 //서버로 증상 보내기
 class SymptomInputScreen extends StatefulWidget {
@@ -1361,7 +1363,7 @@ Future<void> checkStockMedicine(BuildContext context) async {
   
   try {
     // 카메라 실행
-    await _speak("상비약 조회를 위해 카메라가 실행됩니다.");
+    await _speak("상비약 조회를 위해 카메라가 실행됩니다. 음량조절 버튼을 누르고 찰칵 소리가 나면 오른쪽 아래 버튼을 눌러야 합니다.");
     final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
 
     if (photo != null) {
@@ -1422,7 +1424,7 @@ Future<void> deleteStockMedicine(BuildContext context) async {
 
   try {
     // 카메라 실행
-    await _speak("상비약 삭제를 위해 카메라가 실행됩니다.");
+    await _speak("상비약 삭제를 위해 카메라가 실행됩니다. 음량조절 버튼을 누르고 찰칵 소리가 나면 오른쪽 아래 버튼을 눌러야 합니다.");
     final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
 
     if (photo != null) {

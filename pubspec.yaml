@@ -71,7 +71,6 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
-    - assets/imgs/mainlogo.png
     - assets/imgs/mainlogo2.png
     - assets/imgs/drugpic1.png
     - assets/imgs/drugpic2.png
