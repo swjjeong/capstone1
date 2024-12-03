@@ -359,6 +359,11 @@ class _MainPageState extends State<MainPage> {
               boxHeight: boxHeight,
               onSingleTap: () async => await _speak("상비약을 조회 및 삭제합니다"),
               onLongPress: () {
+                Future<void> _speak(String text) async {
+                  await flutterTts.stop();
+                  await flutterTts.speak(text);
+                }
+                _speak("상비약을 조회 및 삭제합니다. 위쪽에 상비약 조회, 아래쪽에 상비약 삭제 버튼이 있습니다.");
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => StockMedicineScreen()),
@@ -704,132 +709,31 @@ void navigateToPrescriptionManager(BuildContext context, String hospitalName) {
 }
 
 //서버로 증상 보내기
-Future<void> sendAudioFileToServer(String filePath) async {
-  try {
-    final dio = Dio();
-
-    // 파일 확인
-    final file = File(filePath);
-    if (!file.existsSync()) {
-      print("Error: File does not exist at path $filePath");
-      return;
-    }
-
-    // 파일 크기 확인
-    final fileSize = await file.length();
-    print("Audio file size: $fileSize bytes");
-
-    if (fileSize == 0) {
-      print("Error: File is empty");
-      return;
-    }
-
-    // MP3 변환 (옵션)
-    final convertedFilePath = await convertToMp3(filePath);
-    if (convertedFilePath == null) {
-      print("Error: Failed to convert file to MP3");
-      return;
-    }
-
-    // 파일 MIME 타입 확인 및 설정
-    final mimeType = "audio/mpeg"; // .mp3 파일의 올바른 MIME 타입
-
-    // FormData 생성
-    final formData = FormData.fromMap({
-      'file': await MultipartFile.fromFile(
-        convertedFilePath,
-        filename: 'audio_recording.mp3', // 서버에 전달할 파일명
-        contentType: MediaType.parse(mimeType), // MIME 타입 명시적으로 설정
-      ),
-      'metadata': jsonEncode({
-        'description': 'Audio recording for prescription', // 추가 정보
-        'timestamp': DateTime.now().toIso8601String(), // 현재 시간
-      }),
-    });
-
-    // 서버 요청
-    final response = await dio.post(
-      'http://13.124.74.154:8080/api/transcription-to-medicine',
-      data: formData,
-      options: Options(
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      ),
-    );
-
-    // 응답 확인
-    if (response.statusCode == 200) {
-      print("Server Response: ${response.data}");
-    } else {
-      print("Failed to send audio: ${response.statusCode}");
-    }
-  } catch (e) {
-    print("Error sending audio file: $e");
-  }
-}
-
-// MP3 변환 함수
-Future<String?> convertToMp3(String inputPath) async {
-  try {
-    final outputPath = inputPath.replaceAll(RegExp(r'\.\w+$'), '.mp3'); // 확장자 변경
-    final ffmpeg = FlutterFFmpeg();
-
-    final arguments = [
-      '-i',
-      inputPath,
-      '-codec:a',
-      'libmp3lame',
-      '-qscale:a',
-      '2',
-      outputPath,
-    ];
-
-    final result = await ffmpeg.executeWithArguments(arguments);
-
-    if (result == 0) {
-      print("MP3 변환 성공: $outputPath");
-      return outputPath;
-    } else {
-      print("MP3 변환 실패");
-      return null;
-    }
-  } catch (e) {
-    print("MP3 변환 중 오류 발생: $e");
-    return null;
-  }
-}
-
-
-
-//증상 추천 음성입력
 class SymptomInputScreen extends StatefulWidget {
   @override
   _SymptomInputScreenState createState() => _SymptomInputScreenState();
 }
 
 class _SymptomInputScreenState extends State<SymptomInputScreen> {
-  bool _isPressed = false; // 꾹 눌렀는지 여부
-  final FlutterTts flutterTts = FlutterTts();
-
   final recorder = sound.FlutterSoundRecorder();
   bool isRecording = false;
   String audioPath = '';
-  String savedAudioPath = '';
+  String playAudioPath = '';
   final audioPlayer = AudioPlayer();
   bool isPlaying = false;
+  List<String> recommendedMedicines = [];
 
   @override
   void initState() {
     super.initState();
-    _speakInstruction();
-    initRecorder(); // 녹음기 초기화
+    initRecorder();
   }
 
-  Future<void> _speakInstruction() async {
-    await flutterTts.setLanguage("ko-KR");
-    await flutterTts.setPitch(1.0);
-    await flutterTts.speak("가운데를 꾹 눌러 증상을 음성으로 입력하세요");
+  @override
+  void dispose() {
+    recorder.closeRecorder();
+    audioPlayer.dispose();
+    super.dispose();
   }
 
   Future<void> initRecorder() async {
@@ -840,85 +744,169 @@ class _SymptomInputScreenState extends State<SymptomInputScreen> {
     await recorder.openRecorder();
   }
 
-  Future<void> startRecording() async {
-    if (!recorder.isRecording) {
-      await recorder.startRecorder(toFile: 'audio');
+  Future<void> record() async {
+    if (!isRecording) {
+      final directory = await getApplicationDocumentsDirectory();
+      final path = '${directory.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+      await recorder.startRecorder(
+        toFile: path,
+        codec: sound.Codec.aacMP4,
+      );
+
       setState(() {
         isRecording = true;
+        audioPath = path;
       });
     }
   }
 
-  Future<void> stopRecording() async {
-    final path = await recorder.stopRecorder(); // 녹음 중지 후 경로 반환
+  Future<void> stop() async {
+    final path = await recorder.stopRecorder();
     if (path != null) {
       audioPath = path;
 
-      // 파일 크기 확인 및 출력
-      final file = File(audioPath);
-      print("Audio file size: ${file.lengthSync()} bytes");
-
-      // 녹음 파일 저장
-      savedAudioPath = await saveRecordingLocally();
-
-      print("Saved audio path: $savedAudioPath");
-
-      setState(() {
-        isRecording = false;
-      });
-
-      // 서버로 파일 전송
-      await sendAudioFileToServer(audioPath);
-    } else {
-      print("No audio file recorded.");
+      if (File(audioPath).existsSync()) {
+        final savedPath = await saveRecordingLocally();
+        if (savedPath.isNotEmpty) {
+          await sendAudioToServer(savedPath);
+        }
+      } else {
+        print("녹음 파일이 존재하지 않습니다.");
+      }
     }
+
+    setState(() {
+      isRecording = false;
+    });
   }
 
-
-
   Future<String> saveRecordingLocally() async {
-    if (audioPath.isEmpty) return '';
-
     final audioFile = File(audioPath);
     if (!audioFile.existsSync()) return '';
 
     try {
       final directory = await getApplicationDocumentsDirectory();
-      final newPath = p.join(directory.path, 'recordings');
-      final newFile = File(p.join(newPath, 'audio.mp3'));
-
-      if (!(await newFile.parent.exists())) {
-        await newFile.parent.create(recursive: true);
-      }
-
-      await audioFile.copy(newFile.path);
-      return newFile.path;
+      final newPath = p.join(directory.path, 'recordings', 'audio.m4a');
+      await Directory(p.dirname(newPath)).create(recursive: true);
+      await audioFile.copy(newPath);
+      playAudioPath = newPath;
+      return newPath;
     } catch (e) {
-      print('녹음 파일 저장 중 오류 발생: $e');
+      print('녹음 파일 저장 중 오류: $e');
       return '';
     }
   }
 
   Future<void> playRecording() async {
-    if (savedAudioPath.isNotEmpty && !isPlaying) {
-      await audioPlayer.play(DeviceFileSource(savedAudioPath));
-      setState(() {
-        isPlaying = true;
-      });
-
-      audioPlayer.onPlayerComplete.listen((event) {
-        setState(() {
-          isPlaying = false;
-        });
-      });
+    if (playAudioPath.isNotEmpty && File(playAudioPath).existsSync()) {
+      await audioPlayer.setSourceDeviceFile(playAudioPath);
+      await audioPlayer.resume();
     }
   }
 
-  @override
-  void dispose() {
-    recorder.closeRecorder();
-    audioPlayer.dispose();
-    super.dispose();
+  Future<void> sendAudioToServer(String filePath) async {
+    final FlutterTts flutterTts = FlutterTts();
+
+    // 음성 출력 함수
+    Future<void> _speak(String text) async {
+      await flutterTts.setLanguage("ko-KR");
+      await flutterTts.setPitch(1.0);
+      // 음성 출력 완료를 대기
+      await flutterTts.awaitSpeakCompletion(true);
+      await flutterTts.speak(text);
+    }
+
+    try {
+      // 파일 확인
+      final file = File(filePath);
+      if (!file.existsSync()) {
+        print("오류: 파일이 존재하지 않습니다.");
+        await _speak("파일이 존재하지 않습니다.");
+        return;
+      }
+
+      // 파일 크기 확인
+      final fileSize = await file.length();
+      print("파일 크기: $fileSize bytes");
+
+      if (fileSize == 0) {
+        print("오류: 파일이 비어 있습니다.");
+        await _speak("파일이 비어 있습니다.");
+        return;
+      }
+
+      // FormData 생성
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(
+          filePath,
+          filename: p.basename(filePath),
+          contentType: MediaType.parse("audio/mp4"),
+        ),
+      });
+
+      // 서버 요청
+      final dio = Dio();
+      final response = await dio.post(
+        'http://13.124.74.154:8080/api/transcription-to-medicine',
+        data: formData,
+        options: Options(headers: {'Content-Type': 'multipart/form-data'}),
+      );
+
+      // 응답 처리
+      if (response.statusCode == 200) {
+        print('서버 응답: ${response.data}');
+        final responseData = response.data;
+
+        if (responseData['status'] == 'success') {
+          // 변환된 텍스트 출력
+          final transcriptionText = responseData['transcriptionText'];
+          if (transcriptionText != null) {
+            print('변환된 텍스트: $transcriptionText');
+            await _speak("입력하신 증상은 $transcriptionText 입니다.");
+          }
+
+          // 추천 약 정보 처리
+          if (responseData.containsKey('recommendedMedicines')) {
+            final recommendedData = responseData['recommendedMedicines'];
+
+            if (recommendedData['status'] == 'success' &&
+                recommendedData['medicines'] is List) {
+              final medicines = recommendedData['medicines'] as List<dynamic>;
+              final medicineList = medicines.cast<String>();
+
+              // 추천 약 목록 생성 및 음성 출력
+              if (medicineList.isNotEmpty) {
+                final medicineString = medicineList.join(", ");
+                print('추천 약: $medicineString');
+                await _speak("추천 약은 $medicineString 입니다.");
+              } else {
+                print('추천 약 목록이 비어 있습니다.');
+                await _speak("추천 약 목록이 없습니다.");
+              }
+            } else {
+              print('추천 약 데이터가 올바르지 않습니다.');
+              await _speak(" 해당 약을 상비약 목록에서 찾을 수 없습니다");
+            }
+          }
+        } else if (responseData['status'] == 'error') {
+          // 에러 메시지 출력
+          final errorMessage =
+              responseData['error_message'] ?? "알 수 없는 오류가 발생했습니다.";
+          print('오류 메시지: $errorMessage');
+          await _speak(errorMessage);
+        } else {
+          print('알 수 없는 상태: ${responseData['status']}');
+          await _speak("알 수 없는 상태입니다.");
+        }
+      } else {
+        print('서버 요청 실패: ${response.statusCode}');
+        await _speak("서버 요청이 실패했습니다.");
+      }
+    } catch (e) {
+      print('오류 발생: $e');
+      await _speak("서버 요청 중 오류가 발생했습니다.");
+    }
   }
 
   @override
@@ -931,82 +919,38 @@ class _SymptomInputScreenState extends State<SymptomInputScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding: EdgeInsets.all(16.0),
-              child: Text(
-                '증상을\n음성으로\n입력해주세요',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Color(0xFF1C3462),
-                  fontSize: 30,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+            Text(
+              '증상을\n음성으로\n입력해주세요',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Color(0xFF1C3462)),
             ),
             SizedBox(height: 20),
             GestureDetector(
-              onLongPress: () async {
-                setState(() {
-                  _isPressed = true; // 꾹 눌렀을 때 상태 변경
-                });
-                await startRecording(); // 녹음 시작
-              },
-              onLongPressEnd: (_) async {
-                await stopRecording(); // 녹음 중지 및 저장
-                setState(() {
-                  _isPressed = false; // 꾹 누름 해제 시 상태 변경
-                });
-              },
+              onLongPress: record,
+              onLongPressUp: stop,
               child: Container(
                 width: size.width * 0.8,
                 height: size.width * 0.5,
                 decoration: BoxDecoration(
                   color: Color(0xFF1C3462),
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.25),
-                      blurRadius: 10,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
                 ),
                 child: Center(
-                  child: _isPressed
-                      ? Text(
-                    "녹음 중...",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  )
-                      : Image.asset(
-                    'assets/imgs/mic.png', // 이미지 경로
-                    width: 150, // 이미지 크기
-                    height: 150,
-                    fit: BoxFit.contain,
+                  child: Icon(
+                    isRecording ? Icons.stop : Icons.mic,
+                    color: Colors.white,
+                    size: 50,
                   ),
                 ),
               ),
             ),
             SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () async {
-                await playRecording(); // 녹음된 파일 재생
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                textStyle: TextStyle(fontSize: 18),
-              ),
+              onPressed: playRecording,
               child: Text(isPlaying ? "재생 중..." : "녹음 파일 재생"),
             ),
             SizedBox(height: 20),
-            Text(
-              isRecording ? "녹음 중..." : "음성입력 대기 중",
-              style: TextStyle(fontSize: 18, color: Colors.black),
-            ),
+            
           ],
         ),
       ),
@@ -1410,8 +1354,14 @@ Future<void> checkStockMedicine(BuildContext context) async {
   flutterTts.setEngine("com.google.android.tts");
   flutterTts.setPitch(1.0);
 
+  Future<void> _speak(String text) async {
+    await flutterTts.stop();
+    await flutterTts.speak(text);
+  }
+  
   try {
     // 카메라 실행
+    await _speak("상비약 조회를 위해 카메라가 실행됩니다.");
     final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
 
     if (photo != null) {
