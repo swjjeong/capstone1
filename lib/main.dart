@@ -47,6 +47,7 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   final FlutterTts flutterTts = FlutterTts();
+  bool isGuideAnnounced = false; // 음성 가이드 실행 여부
   final ImagePicker _picker = ImagePicker();
   final Dio _dio = Dio(
     BaseOptions(
@@ -75,17 +76,20 @@ class _MainPageState extends State<MainPage> {
   @override
   void initState() {
     super.initState();
-    _announceAppName(); // 앱 실행 시 음성 출력
+    if (!isGuideAnnounced) {
+      _announceAppName(); // 처음 로드 시만 음성 가이드 실행
+      isGuideAnnounced = true;
+    }
   }
 
   Future<void> _announceAppName() async {
-    await _speak("이 앱은 여기약입니다. 한번 터치하면 해당 버튼에 대한 설명을, 길게 꾹 누르면 그 버튼이 실행됩니다. 모든 행동은 음성가이드가 끝난 후 진행해주세요.");
+    await _speak("이 앱은 여기약입니다. 시각장애인의 복약환경 개선을 위한 여기약이 실행되었습니다. 여기약은 사진촬영을 통해 상비약과 처방약의 구분과 관리를 돕습니다. 화면을 터치하여 사용할 기능을 고르고, 다시 길게 누른 후 음성안내에 따라주세요. 모든 행동은 음성가이드가 끝난 후 진행해주세요.");
   }
 
   //처방약 먹기 사진 찍고 업로드
   Future<void> takePhotoAndUpload1(BuildContext context) async {
     try {
-      await _speak("처방약 복용 카메라가 실행됩니다. 주변을 깨끗이 하고, 처방약 봉투를 찍어주세요. 음량조절 버튼을 누르고 찰칵 소리가 나면 오른쪽 아래 버튼을 눌러야 합니다.");
+      await _speak("처방약 복용 카메라가 실행됩니다. 주변을 깨끗이 하고, 처방약 봉투를 찍어주세요. 화면을 두번 터치 후 찰칵 소리가 나면 오른쪽 아래 확인버튼을 눌러야 합니다.");
       final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
 
       if (photo != null) {
@@ -139,7 +143,7 @@ class _MainPageState extends State<MainPage> {
   //약 등록 시 사진 찍고 업로드
   Future<void> takePhotoAndUpload(BuildContext context) async {
     try {
-      await _speak("약 등록 카메라가 실행됩니다. 처방약의 경우 처방약 봉투를, 상비약의 경우 상비약 상자를 찍어주세요. 음량조절 버튼을 누르고 찰칵 소리가 나면 오른쪽 아래 버튼을 눌러야 합니다.");
+      await _speak("약 등록 카메라가 실행됩니다. 처방약의 경우 처방약 봉투를, 상비약의 경우 상비약 상자를 찍어주세요. 화며을 두번 터치 후 찰칵 소리가 나면 오른쪽 아래 확인버튼을 눌러야 합니다.");
       final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
 
       if (photo != null) {
@@ -181,7 +185,7 @@ class _MainPageState extends State<MainPage> {
         if (status == "success") {
           final name = responseData['name'] ?? "알 수 없는 이름";
           final message = responseData['message'] ?? "메시지가 없습니다.";
-          _speak("약 등록이 완료되었습니다. 이름: $name. $message");
+          _speak("약 등록이 완료되었습니다. 이름: $name. $message. 메인 페이지로 이동을 원하시면 맨 아래 버튼을 2번 눌러주세요.");
 
           Navigator.push(
             context,
@@ -226,7 +230,7 @@ class _MainPageState extends State<MainPage> {
 
     try {
       // 카메라 실행
-      await _speak("상비약 조회 카메라가 실행됩니다. 음량조절 버튼을 누르고 찰칵 소리가 나면 오른쪽 아래 버튼을 눌러야 합니다.");
+      await _speak("상비약 이름확인을 위해 카메라가 실행됩니다. 화면을 두번 터치 후 찰칵 소리가 나면 오른쪽 아래 확인버튼을 눌러야 합니다.");
       final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
 
       if (photo != null) {
@@ -289,7 +293,7 @@ class _MainPageState extends State<MainPage> {
               color: Color(0xFFFFD700),
               boxWidth: boxWidth,
               boxHeight: boxHeight,
-              onSingleTap: () async => await _speak("처방받은 약을 복용합니다"),
+              onSingleTap: () async => await _speak("처방받은 약을 복용하기 위한 버튼입니다."),
               onLongPress: () async => await takePhotoAndUpload1(context),
               imagePath: "assets/imgs/drugpic1.png", // 이미지를 추가
               imageWidth: boxWidth * 0.5, // 너비를 박스 너비의 30%로 설정
@@ -300,7 +304,7 @@ class _MainPageState extends State<MainPage> {
               color: Color(0xFFFFFCF5),
               boxWidth: boxWidth,
               boxHeight: boxHeight,
-              onSingleTap: () async => await _speak("약을 등록합니다"),
+              onSingleTap: () async => await _speak("약을 등록하는 버튼입니다."),
               onLongPress: () async => await takePhotoAndUpload(context),
               imagePath: "assets/imgs/drugpic3.png", // 이미지를 추가
               imageWidth: boxWidth * 0.5, // 너비를 박스 너비의 30%로 설정
@@ -340,17 +344,17 @@ class _MainPageState extends State<MainPage> {
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             ClickableBoxWidget(
-              title: "상비약\n조회 및 삭제",
+              title: "상비약 이름\n확인 &\n상비약 삭제",
               color: Color(0xFFFFFCF5),
               boxWidth: boxWidth,
               boxHeight: boxHeight,
-              onSingleTap: () async => await _speak("상비약을 조회 및 삭제합니다"),
+              onSingleTap: () async => await _speak("상비약 이름 확인 및 상비약 삭제 버튼입니다."),
               onLongPress: () {
                 Future<void> _speak(String text) async {
                   await flutterTts.stop();
                   await flutterTts.speak(text);
                 }
-                _speak("상비약을 조회 및 삭제합니다. 위쪽에 상비약 조회, 아래쪽에 상비약 삭제 버튼이 있습니다.");
+                _speak("상비약의 상자사진을 찍어 상비약 이름을 확인 및 상비약을 삭제합니다. 위쪽에 상비약 이름확인버튼, 아래쪽에 상비약을 삭제하는 버튼, 맨 아래에는 메인페이지로 이동하는 버튼이 있습니다.");
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => StockMedicineScreen()),
@@ -367,7 +371,7 @@ class _MainPageState extends State<MainPage> {
               boxHeight: boxHeight,
               onSingleTap: () async => await _speak("효능효과로 상비약 검색을 해주는 버튼입니다."),
               onLongPress: () {
-                _speak("효능효과로 상비약울 검색합니다. 가운데를 꾹 눌러 증상을 음성으로 입력해주세요.");
+                _speak("효능효과로 상비약울 검색합니다. 가운데를 꾹 눌러 증상을 음성으로 입력하세요. 가운데를 꾹 누르면 음성입력 시작, 손을 떼면 음성입력이 종료됩니다.");
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => SymptomInputScreen()),
@@ -396,7 +400,7 @@ class PrescriptionResultPage extends StatelessWidget {
     final ImagePicker picker = ImagePicker();
 
     try {
-      await _speak("카메라가 실행됩니다. 처방약 개별봉투를 찍어주세요. 음량조절 버튼을 누르고 찰칵 소리가 나면 오른쪽 아래 버튼을 눌러야 합니다.");
+      await _speak("카메라가 실행됩니다. 처방약 개별봉투를 찍어주세요. 화면을 두번 터치 후 찰칵 소리가 나면 오른쪽 아래 확인버튼을 눌러야 합니다.");
       final XFile? photo = await picker.pickImage(source: ImageSource.camera);
       if (photo == null) {
         await _speak("사진이 선택되지 않았습니다.");
@@ -420,7 +424,7 @@ class PrescriptionResultPage extends StatelessWidget {
         final status = response.data['status'];
         if (status == "success") {
           final extractedText = response.data['message'] ?? "알 수 없는 정보";
-          await _speak("$extractedText약 입니다. 남은 약 봉투 개수를 확인하고 싶다면 가운데를 꾹 눌러주세요");
+          await _speak("$extractedText약 입니다. 먹고 싶은 약이 아니라면 왼쪽 상단을 눌러주세요. 남은 약 봉투 개수를 확인하고 싶다면 가운데를 꾹 눌러주세요");
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -531,10 +535,7 @@ class PrescriptionResultPage extends StatelessWidget {
               onLongPress: () async {
                 // 길게 눌렀을 때 메인페이지로 이동
                 await _speak("메인페이지로 이동합니다.");
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => App()), // 메인페이지로 이동
-                      (route) => false,
-                );
+                Navigator.of(context).popUntil((route) => route.isFirst);
               },
               child: Text("여기약 메인페이지"),
               style: ElevatedButton.styleFrom(
@@ -553,21 +554,21 @@ class PrescriptionResultPage extends StatelessWidget {
 //처방약 먹기(남은약 봉투 개수 출력) PrescriptionTextExtractor
 class PrescriptionTextExtractor extends StatefulWidget {
   final String hospitalName;
-  final String extractedText; // 추가된 필드
+  final String extractedText;
 
   PrescriptionTextExtractor({
     required this.hospitalName,
-    required this.extractedText, // 초기화
+    required this.extractedText,
   });
 
   @override
   _PrescriptionTextExtractorState createState() =>
       _PrescriptionTextExtractorState();
 }
+
 class _PrescriptionTextExtractorState extends State<PrescriptionTextExtractor> {
   final Dio _dio = Dio();
   final FlutterTts flutterTts = FlutterTts();
-
   String? totalBagsMessage;
   bool isPressed = false;
 
@@ -575,7 +576,6 @@ class _PrescriptionTextExtractorState extends State<PrescriptionTextExtractor> {
   void initState() {
     super.initState();
     flutterTts.setLanguage("ko-KR");
-    flutterTts.setEngine("com.google.android.tts");
     flutterTts.setPitch(1.0);
   }
 
@@ -584,49 +584,44 @@ class _PrescriptionTextExtractorState extends State<PrescriptionTextExtractor> {
     await flutterTts.speak(text);
   }
 
+  Future<bool> _onWillPop() async {
+    // 뒤로가기 버튼 클릭 시 음성 출력
+    await _speak("이전 페이지로 이동합니다. 가운데를 길게 눌러 처방약 개별 봉투를 다시 찍어주세요");
+    return true; // `true`를 반환하면 뒤로 가기 허용
+  }
+
   Future<void> fetchPrescriptionCount() async {
     try {
-      // 요청 데이터 생성
       final formData = FormData.fromMap({
-        "hospitalName": widget.hospitalName, // 병원 이름
-        "timeOfDay": widget.extractedText, // 시간을 timeOfDay로 전송
+        "hospitalName": widget.hospitalName,
+        "timeOfDay": widget.extractedText,
       });
 
       print("요청 데이터: $formData");
 
-      // 서버 요청
       final response = await _dio.post(
         'http://13.124.74.154:8080/prescription/update-dosage',
         data: formData,
-        options: Options(
-          headers: {
-            "Content-Type": "multipart/form-data", // form-data 형식 설정
-          },
-        ),
+        options: Options(headers: {"Content-Type": "multipart/form-data"}),
       );
 
-      // 응답 처리
       if (response.statusCode == 200 && response.data != null) {
-        print("응답 데이터: ${response.data}");
         final status = response.data['status'];
 
         if (status == "success") {
           final dosageMessage = response.data['message'];
-          String totalBagsMessage = "남은 약 봉투는 ${response
-              .data['remaining_bags']}개 입니다.";
+          String totalBagsMessage =
+              "남은 약 봉투는 ${response.data['remaining_bags']}개 입니다.";
           await _speak("$totalBagsMessage $dosageMessage");
-          setState(() {});
         } else {
           final errorMessage = response.data['error_message'] ?? "오류 발생.";
           await _speak(errorMessage);
         }
       } else {
-        print("서버 응답 코드: ${response.statusCode}");
         await _speak("서버 응답이 올바르지 않습니다.");
       }
     } catch (e) {
-      print("오류 발생: $e");
-      await _speak("오류 발생: 이여");
+      await _speak("오류 발생: 서버에 연결할 수 없습니다.");
     }
   }
 
@@ -634,99 +629,97 @@ class _PrescriptionTextExtractorState extends State<PrescriptionTextExtractor> {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text("처방 약 관리"),
-        backgroundColor: Color(0xFF1C3462),
-      ),
-      backgroundColor: Color(0xFFF2E9D7),
-      body: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    "처방 병원: ${widget.hospitalName}", // 병원 이름 출력
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                  SizedBox(height: 20),
-                  GestureDetector(
-                    onLongPress: () async {
-                      setState(() {
-                        isPressed = true; // 꾹 눌렀을 때 상태 변경
-                      });
-                      await fetchPrescriptionCount(); // 서버로 병원 이름 전송 및 데이터 조회
-                      setState(() {
-                        isPressed = false; // 처리 후 상태 초기화
-                      });
-                    },
-                    onLongPressEnd: (_) {
-                      setState(() {
-                        isPressed = false; // 꾹 누름 해제 시 상태 초기화
-                      });
-                    },
-                    child: Container(
-                      width: size.width * 0.8,
-                      height: size.width * 0.5,
-                      decoration: BoxDecoration(
-                        color: Color(0xFF1C3462),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.25),
-                            blurRadius: 10,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
+    return WillPopScope(
+      onWillPop: _onWillPop, // 뒤로 가기 동작을 제어
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text("처방 약 관리"),
+          backgroundColor: Color(0xFF1C3462),
+        ),
+        backgroundColor: Color(0xFFF2E9D7),
+        body: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      "처방 병원: ${widget.hospitalName}",
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
                       ),
-                      child: Center(
-                        child: Text(
-                          isPressed ? "조회 중..." : "남은 약 봉투 확인",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
+                    ),
+                    SizedBox(height: 20),
+                    GestureDetector(
+                      onLongPress: () async {
+                        setState(() {
+                          isPressed = true;
+                        });
+                        await fetchPrescriptionCount();
+                        setState(() {
+                          isPressed = false;
+                        });
+                      },
+                      onLongPressEnd: (_) {
+                        setState(() {
+                          isPressed = false;
+                        });
+                      },
+                      child: Container(
+                        width: size.width * 0.8,
+                        height: size.width * 0.5,
+                        decoration: BoxDecoration(
+                          color: Color(0xFF1C3462),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.25),
+                              blurRadius: 10,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Text(
+                            isPressed ? "조회 중..." : "남은 약 봉투 확인",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 20.0),
-            child: ElevatedButton(
-              onPressed: () async {
-                // 터치 시 음성 출력
-                await _speak("메인페이지로 이동하는 버튼입니다.");
-              },
-              onLongPress: () async {
-                // 길게 눌렀을 때 메인페이지로 이동
-                await _speak("메인페이지로 이동합니다.");
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => App()), // 메인페이지로 이동
-                      (route) => false,
-                );
-              },
-              child: Text("여기약 메인페이지"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFF1C3462),
-                padding: EdgeInsets.symmetric(horizontal: 150, vertical: 40),
-                textStyle: TextStyle(fontSize: 13),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 20.0),
+              child: ElevatedButton(
+                onPressed: () async {
+                  await _speak("메인페이지로 이동하는 버튼입니다.");
+                },
+                onLongPress: () async {
+                  await _speak("메인페이지로 이동합니다.");
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                },
+                child: Text("여기약 메인페이지"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF1C3462),
+                  padding: EdgeInsets.symmetric(horizontal: 150, vertical: 40),
+                  textStyle: TextStyle(fontSize: 13),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -757,7 +750,7 @@ class SymptomInputScreen extends StatefulWidget {
 
 class _SymptomInputScreenState extends State<SymptomInputScreen> {
   final recorder = sound.FlutterSoundRecorder();
-  final FlutterTts flutterTts = FlutterTts();
+  final FlutterTts flutterTts = FlutterTts(); // FlutterTts 초기화 추가
   bool isRecording = false;
   String audioPath = '';
   String playAudioPath = '';
@@ -769,8 +762,8 @@ class _SymptomInputScreenState extends State<SymptomInputScreen> {
   void initState() {
     super.initState();
     initRecorder();
-    flutterTts.setLanguage("ko-KR");
-    flutterTts.setPitch(1.0);
+    flutterTts.setLanguage("ko-KR"); // TTS 언어 설정 추가
+    flutterTts.setPitch(1.0); // TTS 음성 피치 설정 추가
   }
 
   @override
@@ -783,10 +776,10 @@ class _SymptomInputScreenState extends State<SymptomInputScreen> {
   // 음성 출력 메서드
   Future<void> _speak(String text) async {
     try {
-      await flutterTts.awaitSpeakCompletion(true); // 음성 출력 대기
+      await flutterTts.awaitSpeakCompletion(true); // 음성 출력 대기 추가
       await flutterTts.speak(text);
     } catch (e) {
-      print("음성 출력 오류 발생: $e");
+      print("음성 출력 오류 발생: $e"); // 오류 발생 시 로그 출력
     }
   }
 
@@ -823,7 +816,8 @@ class _SymptomInputScreenState extends State<SymptomInputScreen> {
       if (File(audioPath).existsSync()) {
         final savedPath = await saveRecordingLocally();
         if (savedPath.isNotEmpty) {
-          await sendAudioToServer(savedPath);
+          await _speak("음성 녹음이 완료되었습니다."); // 먼저 음성 안내 출력
+          await sendAudioToServer(savedPath); // 그 후 서버로 오디오 전송
         }
       } else {
         print("녹음 파일이 존재하지 않습니다.");
@@ -861,9 +855,93 @@ class _SymptomInputScreenState extends State<SymptomInputScreen> {
 
   Future<void> sendAudioToServer(String filePath) async {
     try {
-      // 서버와의 통신 처리 코드 ...
+      // 파일 확인
+      final file = File(filePath);
+      if (!file.existsSync()) {
+        print("오류: 파일이 존재하지 않습니다.");
+        await _speak("파일이 존재하지 않습니다.");
+        return;
+      }
+
+      // 파일 크기 확인
+      final fileSize = await file.length();
+      print("파일 크기: $fileSize bytes");
+
+      if (fileSize == 0) {
+        print("오류: 파일이 비어 있습니다.");
+        await _speak("파일이 비어 있습니다.");
+        return;
+      }
+
+      // FormData 생성
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(
+          filePath,
+          filename: p.basename(filePath),
+          contentType: MediaType.parse("audio/mp4"),
+        ),
+      });
+
+      // 서버 요청
+      final dio = Dio();
+      final response = await dio.post(
+        'http://13.124.74.154:8080/api/transcription-to-medicine',
+        data: formData,
+        options: Options(headers: {'Content-Type': 'multipart/form-data'}),
+      );
+
+      // 응답 처리
+      if (response.statusCode == 200) {
+        print('서버 응답: ${response.data}');
+        final responseData = response.data;
+
+        if (responseData['status'] == 'success') {
+          // 변환된 텍스트 출력
+          final transcriptionText = responseData['transcriptionText'];
+          if (transcriptionText != null) {
+            print('변환된 텍스트: $transcriptionText');
+            await _speak("입력하신 증상은 $transcriptionText 입니다.");
+          }
+
+          // 추천 약 정보 처리
+          if (responseData.containsKey('recommendedMedicines')) {
+            final recommendedData = responseData['recommendedMedicines'];
+
+            if (recommendedData['status'] == 'success' &&
+                recommendedData['medicines'] is List) {
+              final medicines = recommendedData['medicines'] as List<dynamic>;
+              final medicineList = medicines.cast<String>();
+
+              // 추천 약 목록 생성 및 음성 출력
+              if (medicineList.isNotEmpty) {
+                final medicineString = medicineList.join(", ");
+                print('추천 약: $medicineString');
+                await _speak("해당 증상의 효능효과와 일치하는 약은 $medicineString 입니다.");
+              } else {
+                print('추천 약 목록이 비어 있습니다.');
+                await _speak("추천 약 목록이 없습니다.");
+              }
+            } else {
+              print('추천 약 데이터가 올바르지 않습니다.');
+              await _speak("해당 약을 상비약 목록에서 찾을 수 없습니다.");
+            }
+          }
+        } else if (responseData['status'] == 'error') {
+          // 에러 메시지 출력
+          final errorMessage =
+              responseData['error_message'] ?? "알 수 없는 오류가 발생했습니다.";
+          print('오류 메시지: $errorMessage');
+          await _speak(errorMessage);
+        } else {
+          print('알 수 없는 상태: ${responseData['status']}');
+          await _speak("알 수 없는 상태입니다.");
+        }
+      } else {
+        print('서버 요청 실패: ${response.statusCode}');
+        await _speak("서버 요청이 실패했습니다.");
+      }
     } catch (e) {
-      print("서버 요청 중 오류 발생: $e");
+      print('오류 발생: $e');
       await _speak("서버 요청 중 오류가 발생했습니다.");
     }
   }
@@ -894,7 +972,9 @@ class _SymptomInputScreenState extends State<SymptomInputScreen> {
                   SizedBox(height: 20),
                   GestureDetector(
                     onLongPress: record,
-                    onLongPressUp: stop,
+                    onLongPressUp: () async {
+                      await stop(); // 녹음을 멈추는 메서드 호출 (음성 안내는 stop() 내부에서 실행)
+                    },
                     child: Container(
                       width: size.width * 0.8,
                       height: size.width * 0.5,
@@ -928,10 +1008,7 @@ class _SymptomInputScreenState extends State<SymptomInputScreen> {
               },
               onLongPress: () async {
                 await _speak("메인페이지로 이동합니다.");
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => App()), // 메인페이지로 이동
-                      (route) => false,
-                );
+                Navigator.of(context).popUntil((route) => route.isFirst);
               },
               child: Text("여기약 메인페이지"),
               style: ElevatedButton.styleFrom(
@@ -946,6 +1023,8 @@ class _SymptomInputScreenState extends State<SymptomInputScreen> {
     );
   }
 }
+
+
 
 
 //새로 추기 위젯(추천결과화면)
@@ -1202,8 +1281,15 @@ class DrugInfoCard extends StatelessWidget {
         Spacer(),
         GestureDetector(
           onTap: () async {
-            await _speak("메인페이지로 이동합니다", flutterTts);
-            Navigator.pop(context); // 메인 페이지로 이동
+            // 한번 터치 시 음성 메시지만 출력
+            await _speak("메인페이지로 이동하는 버튼입니다", flutterTts);
+          },
+          onLongPress: () async {
+            // 길게 누를 시 음성 가이드와 함께 메인 페이지로 이동
+            await _speak(
+                "메인페이지로 이동합니다.",
+                flutterTts);
+            Navigator.of(context).popUntil((route) => route.isFirst); // 메인 페이지로 이동
           },
           child: Align(
             alignment: Alignment.bottomCenter,
@@ -1357,7 +1443,7 @@ Future<void> checkStockMedicine(BuildContext context) async {
   
   try {
     // 카메라 실행
-    await _speak("상비약 조회를 위해 카메라가 실행됩니다. 음량조절 버튼을 누르고 찰칵 소리가 나면 오른쪽 아래 버튼을 눌러야 합니다.");
+    await _speak("상비약 조회를 위해 카메라가 실행됩니다. 화면을 두번 터치하여 찰칵 소리가 나면 오른쪽 아래 확인버튼을 눌러야 합니다.");
     final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
 
     if (photo != null) {
@@ -1383,7 +1469,7 @@ Future<void> checkStockMedicine(BuildContext context) async {
           final message = response.data['message'] ?? "알 수 없는 메시지";
           final efficacy = response.data['efficacy'] ?? "효능/효과 정보가 없습니다.";
 
-          final successMessage = "$medicineName 약의 정보입니다. $message. 효능 및 효과는 $efficacy.";
+          final successMessage = "$medicineName 약의 정보입니다. 효능 및 효과는 $efficacy.";
           await flutterTts.speak(successMessage);
         } else {
           final errorMessage =
@@ -1418,7 +1504,7 @@ Future<void> deleteStockMedicine(BuildContext context) async {
 
   try {
     // 카메라 실행
-    await _speak("상비약 삭제를 위해 카메라가 실행됩니다. 음량조절 버튼을 누르고 찰칵 소리가 나면 오른쪽 아래 버튼을 눌러야 합니다.");
+    await _speak("상비약 삭제를 위해 카메라가 실행됩니다. 화면을 두번 터치 후 찰칵 소리가 나면 오른쪽 아래 확인버튼을 눌러야 합니다.");
     final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
 
     if (photo != null) {
@@ -1493,7 +1579,7 @@ class StockMedicineScreen extends StatelessWidget {
                 children: [
                   GestureDetector(
                     onTap: () async {
-                      await _speak("상비약 조회 버튼입니다.");
+                      await _speak("상비약 이름 확인 버튼입니다.");
                     },
                     onLongPress: () async {
                       await checkStockMedicine(context); // 상비약 조회 기능 실행
@@ -1509,7 +1595,7 @@ class StockMedicineScreen extends StatelessWidget {
                       ),
                       child: Center(
                         child: Text(
-                          '상비약\n조회',
+                          '상비약\n이름확인',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Color(0xFF1C3462),
@@ -1566,10 +1652,7 @@ class StockMedicineScreen extends StatelessWidget {
               onLongPress: () async {
                 // 길게 눌렀을 때 메인페이지로 이동
                 await _speak("메인페이지로 이동합니다.");
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => App()), // 메인페이지로 이동
-                      (route) => false,
-                );
+                Navigator.of(context).popUntil((route) => route.isFirst);
               },
               child: Text("여기약 메인페이지"),
               style: ElevatedButton.styleFrom(
