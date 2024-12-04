@@ -1134,10 +1134,10 @@ class _DrugInfoCardAltState extends State<DrugInfoCardAlt> {
                 ),
                 child: Center(
                   child: Text(
-                    '여기약',
+                    '여기약 메인페이지',
                     style: TextStyle(
                       color: Colors.black,
-                      fontSize: 25,
+                      fontSize: 20,
                       fontFamily: 'Jua',
                       fontWeight: FontWeight.w400,
                     ),
@@ -1310,10 +1310,10 @@ class DrugInfoCard extends StatelessWidget {
               ),
               child: Center(
                 child: Text(
-                  '여기약',
+                  '여기약 메인페이지',
                   style: TextStyle(
                     color: Colors.black,
-                    fontSize: 25,
+                    fontSize: 20,
                     fontFamily: 'Jua',
                     fontWeight: FontWeight.w400,
                   ),
