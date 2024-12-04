@@ -185,7 +185,7 @@ class _MainPageState extends State<MainPage> {
         if (status == "success") {
           final name = responseData['name'] ?? "알 수 없는 이름";
           final message = responseData['message'] ?? "메시지가 없습니다.";
-          _speak("약 등록이 완료되었습니다. 이름: $name. $message. 메인 페이지로 이동을 원하시면 맨 아래 버튼을 2번 눌러주세요.");
+          _speak("약 등록이 완료되었습니다. 이름: $name. $message. 메인 페이지로 이동을 원하시면 맨 아래 버튼을 눌러주세요.");
 
           Navigator.push(
             context,
